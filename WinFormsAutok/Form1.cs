@@ -18,22 +18,25 @@ namespace WinFormsAutok
     {
         MySqlConnection conn = new MySqlConnection("server=localhost;user=root;database=autok;port=3306;password=");
         #region db_stuff
-        public void DBHandler(MySqlConnection connection, string command, Action<MySqlCommand> Method)
+        public string DBHandler(MySqlConnection connection, string command, Func<MySqlCommand, string> Method)
         {
             try
             {
                 connection.Open();
                 MySqlCommand cmd = new MySqlCommand(command, connection);
-                Method(cmd);
+                string result = Method(cmd);
+                connection.Close();
+                return result;
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
+                connection.Close();
+                return ex.Message;
             }
-            connection.Close();
         }
 
-        public void UpdateList(MySqlCommand cmd)
+        public string UpdateList(MySqlCommand cmd)
         {
             MySqlDataReader dr = cmd.ExecuteReader();
             allAutok.Items.Clear();
@@ -42,40 +45,69 @@ namespace WinFormsAutok
                 Auto auto = new Auto(dr.GetInt32("id"), dr.GetString("rendszam"), dr.GetInt32("uzembe_helyezve"), dr.GetString("szin"));
                 allAutok.Items.Add(auto);
             }
+            return "";
         }
 
-        public void SQLUpload(MySqlCommand cmd)
+        public string SQLUpload(MySqlCommand cmd)
         {
-            cmd.Parameters.AddWithValue("@rendszam", rendszamCont.Text);
-            cmd.Parameters.AddWithValue("@uzembh", evCont.Text);
-            cmd.Parameters.AddWithValue("@szin", szinCont.Text);
+            string error = "A következő adatok hiányosak:\n";
+            bool isErrored = false;
+            if (rendszamCont.Text == "")
+            {
+                error += "-Rendszám\n";
+                isErrored = true;
+            }
+            if (evCont.Value < 1900)
+            {
+                error += "-Évjárat\n";
+                isErrored = true;
+            }
+            if (szinCont.Text == "")
+            {
+                error += "-Szín\n";
+                isErrored = true;
+            }
+            if (isErrored)
+            {
+                return error;
+            }
+            else
+            {
+                cmd.Parameters.AddWithValue("@rendszam", rendszamCont.Text);
+                cmd.Parameters.AddWithValue("@uzembh", evCont.Value);
+                cmd.Parameters.AddWithValue("@szin", szinCont.Text);
+                cmd.ExecuteNonQuery();
+                return "Sikeres feltöltés";
+            }
+        }
+
+        public string SQLDelete(MySqlCommand cmd)
+        {
+            cmd.Parameters.AddWithValue("@id", idCont.Value);
             cmd.ExecuteNonQuery();
+            return "Sikeres törlés";
         }
 
-        public void SQLDelete(MySqlCommand cmd)
+        public string Fill(MySqlCommand cmd)
         {
-            cmd.Parameters.AddWithValue("@id", idCont.Text);
-            cmd.ExecuteNonQuery();
-        }
-
-        public void Fill(MySqlCommand cmd)
-        {
-            cmd.Parameters.AddWithValue("@rendszam", allAutok.Text);
+            cmd.Parameters.AddWithValue("@rendszam", allAutok.Text.Split(' ')[0]);
             MySqlDataReader dr = cmd.ExecuteReader();
             dr.Read();
             idCont.Value = dr.GetInt32("id");
             rendszamCont.Text = dr.GetString("rendszam");
             evCont.Value = dr.GetInt32("uzembe_helyezve");
             szinCont.Text = dr.GetString("szin");
+            return "";
         }
 
-        public void SQLModify(MySqlCommand cmd)
+        public string SQLModify(MySqlCommand cmd)
         {
             cmd.Parameters.AddWithValue("@rendszam", rendszamCont.Text);
-            cmd.Parameters.AddWithValue("@uzembh", evCont.Text);
+            cmd.Parameters.AddWithValue("@uzembh", evCont.Value);
             cmd.Parameters.AddWithValue("@szin", szinCont.Text);
             cmd.Parameters.AddWithValue("@id", idCont.Value);
             cmd.ExecuteNonQuery();
+            return "Sikeres módosítás";
         }
         #endregion
 
@@ -91,13 +123,13 @@ namespace WinFormsAutok
 
         private void Add_Click(object sender, EventArgs e)
         {
-            DBHandler(conn, "INSERT INTO autok (id, rendszam, uzembe_helyezve, szin) VALUES (NULL, @rendszam, @uzembh, @szin)", SQLUpload);
+            MessageBox.Show(DBHandler(conn, "INSERT INTO autok (id, rendszam, uzembe_helyezve, szin) VALUES (NULL, @rendszam, @uzembh, @szin)", SQLUpload));
             DBHandler(conn, "SELECT * FROM autok", UpdateList);
         }
 
         private void Delete_Click(object sender, EventArgs e)
         {
-            DBHandler(conn, "DELETE FROM autok WHERE id = @id", SQLDelete);
+            MessageBox.Show(DBHandler(conn, "DELETE FROM autok WHERE id = @id", SQLDelete));
             DBHandler(conn, "SELECT * FROM autok", UpdateList);
         }
 
@@ -108,7 +140,7 @@ namespace WinFormsAutok
 
         private void Modify_Click(object sender, EventArgs e)
         {
-            DBHandler(conn, "UPDATE autok SET rendszam = @rendszam, uzembe_helyezve = @uzembh, szin = @szin WHERE autok.id = @id", SQLModify);
+            MessageBox.Show(DBHandler(conn, "UPDATE autok SET rendszam = @rendszam, uzembe_helyezve = @uzembh, szin = @szin WHERE autok.id = @id", SQLModify));
             DBHandler(conn, "SELECT * FROM autok", UpdateList);
         }
     }
