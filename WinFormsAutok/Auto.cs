@@ -28,7 +28,7 @@ namespace WinFormsAutok
 
         public override string ToString()
         {
-            return rendszam;
+            return $"{rendszam} {szin} {ev}";
         }
     }
 }
